@@ -228,7 +228,7 @@ const POWERS = [
 const G = { state: STATE.MENU, score: 0, best: 0, bests: {}, coins: 999999, runCoins: 0, time: 0, speedMult: 1, shake: 0, flash: 0, sound: true, diff: 'normal', infinite: true,
   owned: { player: { classic: true }, blocks: { charcoal: true }, bg: { light: true } },
   skin: 'classic', blockSkin: 'charcoal', bgSkin: 'light', powers: {},
-  pwLevel(id) { return this.powers[id] || 0; },
+  pwLevel(id) { if (typeof id === 'object' && id) id = id.id; return this.powers[id] || 0; },
   load() {
     try { this.bests = JSON.parse(localStorage.getItem('block_dodge_bests')) || {}; } catch (e) {}
     try {
@@ -267,8 +267,59 @@ const mouse = { x: -1, active: false };
 let shieldLeft = 0;
 let slowTime = 0;
 function buildLanes() { const margin = Math.max(28, W * 0.06); const count = Math.max(5, Math.min(9, Math.floor(W / 110))); const gap = (W - margin * 2) / count; lanes = []; for (let i = 0; i < count; i++) lanes.push(margin + gap * i + gap / 2); }
-function pwL(p, l) { const lvs=[ [1,1,1,1,1], [38,34,30,26,22], [1,2,3,4,5], [2,3,4,5,6], [3,5,8,12,18], [20,50,80,120,180], [1,2,3,4,5] ]; const map={magnet:0,small:1,shield:2,coinmult:3,slow:4,headstart:5,luckycoin:6}; return p ? lvs[map[p.id]][Math.min(G.pwLevel(p.id)-1,4)] : 1; }
-function reset() { buildLanes(); G.state=STATE.PLAY; G.score=0; G.runCoins=0; G.time=0; G.speedMult=1; G.shake=0; G.flash=0; blocks=[]; particles=[]; coinObjs=[]; coinSpawnT=1; shieldLeft=G.pwLevel({id:'shield'}); slowTime=pwL({id:'slow'}); player.w=42-pwL({id:'small'})+2; player.h=player.w; player.x=W/2-player.w/2; player.y=H-92; player.vx=0; player.squash=1; const hs=pwL({id:'headstart'}); if(hs>0){G.score=hs;G.runCoins+=pwL({id:'luckycoin'}); if(!G.infinite)G.coins+=pwL({id:'luckycoin'});} document.getElementById('menu').classList.remove('show');document.getElementById('over').classList.remove('show');document.getElementById('shop').classList.remove('show');document.getElementById('hint').style.display='none';updateHUD();audio();play('start');}
+function pwL(id) {
+  if (typeof id === 'object' && id) id = id.id;
+  const lvl = G.pwLevel(id);
+  if (!lvl || lvl <= 0) return 0;
+  const lvs = {
+    magnet: [180, 240, 310, 380, 460],
+    small: [4, 8, 12, 16, 20],
+    shield: [1, 2, 3, 4, 5],
+    coinmult: [2, 3, 4, 5, 6],
+    slow: [3, 5, 8, 12, 18],
+    headstart: [20, 50, 80, 120, 180],
+    luckycoin: [1, 2, 3, 4, 5]
+  };
+  const arr = lvs[id];
+  if (!arr) return 0;
+  return arr[Math.min(lvl - 1, arr.length - 1)] || 0;
+}
+function reset() {
+  buildLanes();
+  G.state = STATE.PLAY;
+  G.score = 0;
+  G.runCoins = 0;
+  G.time = 0;
+  G.speedMult = 1;
+  G.shake = 0;
+  G.flash = 0;
+  blocks = [];
+  particles = [];
+  coinObjs = [];
+  coinSpawnT = 1;
+  shieldLeft = pwL('shield');
+  slowTime = pwL('slow');
+  player.w = Math.max(22, 42 - pwL('small'));
+  player.h = player.w;
+  player.x = W / 2 - player.w / 2;
+  player.y = H - 92;
+  player.vx = 0;
+  player.squash = 1;
+  const hs = pwL('headstart');
+  if (hs > 0) G.score = hs;
+  const lc = pwL('luckycoin');
+  if (lc > 0) {
+    G.runCoins += lc;
+    if (!G.infinite) G.coins += lc;
+  }
+  document.getElementById('menu').classList.remove('show');
+  document.getElementById('over').classList.remove('show');
+  document.getElementById('shop').classList.remove('show');
+  document.getElementById('hint').style.display = 'none';
+  updateHUD();
+  audio();
+  play('start');
+}
 function spawnCoin() { const lane = lanes[Math.floor(Math.random() * lanes.length)]; coinObjs.push({ x: lane + (Math.random() - 0.5) * 30, y: -20, r: 11, vy: 210 + Math.random() * 60, pulse: Math.random() * 6, got: false }); }
 function spawnBlock() { const lane = lanes[Math.floor(Math.random() * lanes.length)]; const D = DIFFS[G.diff]; const difficulty = Math.min(1, G.time / 40); const size = Math.max(24, 38 + Math.random() * (34 + difficulty * 22) + D.size); const fast = Math.random() < 0.16 + difficulty * 0.18; const wide = Math.random() < 0.1 + difficulty * 0.16; const w = wide ? size * (1.8 + Math.random() * 1.4) : size; const h = fast ? size * 0.72 : size; blocks.push({ x: lane - w / 2 + (Math.random() - 0.5) * 18, y: -h - 20, w, h, vy: (260 + Math.random() * 140 + G.time * 7) * (fast ? 1.45 : 1) * D.speed, vx: (Math.random() < 0.22 + difficulty * 0.18) ? (Math.random() - 0.5) * (80 + G.time * 2) * D.vx : 0, rot: 0, vr: (Math.random() - 0.5) * 0.03, passed: false, type: fast ? 'fast' : wide ? 'wide' : 'normal' }); }
 function hit(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
@@ -276,10 +327,15 @@ function update(dt) {
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 46); if (G.flash > 0) G.flash = Math.max(0, G.flash - dt * 3.8);
   for (const p of particles) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt; p.life -= dt; p.vx *= 0.985; } particles = particles.filter(p => p.life > 0);
   if (G.state !== STATE.PLAY) return;
-  G.time += dt; const slowFactor = (slowTime>0) ? (0.7 - (G.pwLevel({id:'slow'})-1)*0.08) : 1; if(slowTime>0){slowTime-=dt; if(slowTime<=0)slowTime=0;} G.speedMult = (1 + G.time * 0.035) * slowFactor; const D = DIFFS[G.diff]; G.score = Math.floor(G.time * 10 * D.score); if(G.score > G.best){G.best=G.score;G.save();}
+  G.time += dt;
+  const slowFactor = slowTime > 0 ? 0.65 : 1;
+  if (slowTime > 0) { slowTime -= dt; if (slowTime <= 0) slowTime = 0; }
+  G.speedMult = (1 + G.time * 0.035) * slowFactor;
+  const D = DIFFS[G.diff];
+  G.score = Math.floor((G.time * 10 + (pwL('headstart') || 0)) * D.score);
+  if (G.score > G.best) { G.best = G.score; G.save(); }
   let move = 0; if (keys.ArrowLeft || keys.KeyA || touch.left) move -= 1; if (keys.ArrowRight || keys.KeyD || touch.right) move += 1;
   if (mouse.active && !move && !touch.left && !touch.right) {
-    // Follow mouse smoothly: block center chases mouse x
     const targetX = Math.max(18, Math.min(W - player.w - 18, mouse.x - player.w / 2));
     const dx = targetX - player.x;
     player.x += dx * Math.min(1, dt * 22);
@@ -292,8 +348,8 @@ function update(dt) {
   spawnT -= dt; if (spawnT <= 0) { spawnBlock(); if (G.time > 7 && Math.random() < Math.min(0.6, G.time / 55)) spawnBlock(); if (G.time > 24 && Math.random() < 0.22) spawnBlock(); spawnT = Math.max(0.12, 0.72 - G.time * 0.012 + Math.random() * 0.18 + D.spawn); }
   coinSpawnT -= dt; if (coinSpawnT <= 0) { spawnCoin(); coinSpawnT = 0.9 + Math.random() * 1.1; }
   const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
-  const mLvl = G.pwLevel({id:'magnet'}); const magRange = mLvl > 0 ? (160 + (mLvl-1)*70) : 0;
-  const coinMul = Math.max(1, pwL({id:'coinmult'}));
+  const magRange = pwL('magnet');
+  const coinMul = Math.max(1, pwL('coinmult') || 1);
   for (const c of coinObjs) {
     c.y += c.vy * slowFactor * dt; c.pulse += dt * 6;
     if (magRange > 0) { const d = Math.hypot(c.x - pcx, c.y - pcy); if (d < magRange) { const f = Math.min(1, dt * 7); c.x += (pcx - c.x) * f; c.y += (pcy - c.y) * f; } }
@@ -321,7 +377,42 @@ function drawGrid(bgs) { ctx.save(); ctx.strokeStyle = bgs.grid; ctx.lineWidth =
 function drawBlocks() { const bs = currentBlocks(); for (const b of blocks) { ctx.save(); ctx.translate(b.x + b.w / 2, b.y + b.h / 2); ctx.rotate(b.rot); const col = b.type === 'fast' ? bs.colors[2] : b.type === 'wide' ? bs.colors[1] : bs.colors[0]; ctx.fillStyle = col; roundRect(-b.w / 2, -b.h / 2, b.w, b.h, 7); ctx.fill(); ctx.strokeStyle = bs.edge; ctx.lineWidth = 1.5; roundRect(-b.w / 2, -b.h / 2, b.w, b.h, 7); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.14)'; roundRect(-b.w / 2 + 4, -b.h / 2 + 4, b.w - 8, Math.max(4, b.h * .24), 4); ctx.fill(); ctx.restore(); } }
 function drawCoins() { for (const c of coinObjs) { const r = c.r + Math.sin(c.pulse) * 1.2; ctx.save(); ctx.translate(c.x, c.y); ctx.fillStyle = '#ffcf33'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#e0a800'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r - 3, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } }
 function skinFill(sk, cx, cy, size) { if (sk.color === 'rainbow') { const g = ctx.createLinearGradient(cx - size, cy - size, cx + size, cy + size); g.addColorStop(0, '#ff5aa5'); g.addColorStop(.33, '#ffcf33'); g.addColorStop(.66, '#37d67a'); g.addColorStop(1, '#2b8fff'); return g; } return sk.color; }
-function drawPlayer() { if (G.state === STATE.MENU) return; const sk = SKINS.find(s => s.id === G.skin) || SKINS[0]; const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2; if (shieldLeft > 0) { ctx.save(); ctx.strokeStyle = 'rgba(43,143,255,.7)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(pcx, pcy, player.w * 0.85 + Math.sin(G.time * 6) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } ctx.save(); ctx.translate(pcx, pcy); ctx.scale(1 + (1 - player.squash) * .45, player.squash); ctx.fillStyle = skinFill(sk, 0, 0, player.w / 2); roundRect(-player.w / 2, -player.h / 2, player.w, player.h, 9); ctx.fill(); const strokeCol = sk.outline || (currentBG().dark ? '#ffffff' : (sk.color === '#111' ? null : null)); if (strokeCol) { ctx.strokeStyle = strokeCol; ctx.lineWidth = 2.5; roundRect(-player.w / 2, -player.h / 2, player.w, player.h, 9); ctx.stroke(); } ctx.fillStyle = sk.eye || '#fff'; const o = player.w / 42; ctx.fillRect(-11 * o, -7 * o, 7 * o, 7 * o); ctx.fillRect(4 * o, -7 * o, 7 * o, 7 * o); ctx.restore(); }
+function drawPlayer() {
+  if (G.state === STATE.MENU) return;
+  const sk = SKINS.find(s => s.id === G.skin) || SKINS[0];
+  const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
+  if (shieldLeft > 0) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(43,143,255,.75)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(pcx, pcy, player.w * 0.85 + Math.sin(G.time * 6) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.translate(pcx, pcy);
+  ctx.scale(1 + (1 - player.squash) * .45, player.squash);
+  ctx.fillStyle = 'rgba(0,0,0,.1)';
+  roundRect(-player.w / 2 + 1, -player.h / 2 + 3, player.w, player.h, 9);
+  ctx.fill();
+  ctx.fillStyle = skinFill(sk, 0, 0, player.w / 2);
+  roundRect(-player.w / 2, -player.h / 2, player.w, player.h, 9);
+  ctx.fill();
+  const isDarkBG = currentBG().dark;
+  const strokeCol = sk.outline || (isDarkBG && sk.color === '#111' ? '#ffffff' : (!isDarkBG && sk.color === '#e6e6ee' ? '#111111' : null));
+  if (strokeCol) {
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = 2.5;
+    roundRect(-player.w / 2, -player.h / 2, player.w, player.h, 9);
+    ctx.stroke();
+  }
+  ctx.fillStyle = sk.eye || '#fff';
+  const o = player.w / 42;
+  ctx.fillRect(-11 * o, -7 * o, 7 * o, 7 * o);
+  ctx.fillRect(4 * o, -7 * o, 7 * o, 7 * o);
+  ctx.restore();
+}
 function drawParticles() { for (const p of particles) { ctx.globalAlpha = Math.max(0, p.life / p.max); ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; } }
 function roundRect(x, y, w, h, r) { r = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2); ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 function burst(x, y, color, n) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, sp = 90 + Math.random() * 260; particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, size: 2 + Math.random() * 4, color, life: .45 + Math.random() * .35, max: .8 }); } }
